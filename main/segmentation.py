@@ -18,7 +18,7 @@ def main():
     Cell segmentation and tracking
     """
     # Load model
-    model = models.CellposeModel(gpu=True, model_type="omnipose")
+    model = models.CellposeModel(gpu=True, pretrained_model="omnipose_cyto")
 
     # Load input parameters
     parser = argparse.ArgumentParser(description="Input parameters")

@@ -18,7 +18,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 RUN python - <<'PY'
 from cellpose import models
 # This will download cpsam into ~/.cellpose/models/
-_ = models.CellposeModel(gpu=False, pretrained_model='cpsam')
+_ = models.CellposeModel(gpu=False, pretrained_model='omnipose')
 PY
 
-CMD ["python", "track.py"]
+CMD ["python", "segmentation.py"]
