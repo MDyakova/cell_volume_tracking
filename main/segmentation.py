@@ -17,8 +17,6 @@ def main():
     """
     Cell segmentation and tracking
     """
-    # Load model
-    model = models.CellposeModel(gpu=True, pretrained_model="omnipose_cyto")
 
     # Load input parameters
     parser = argparse.ArgumentParser(description="Input parameters")
@@ -37,6 +35,9 @@ def main():
     parser.add_argument(
         "--name_filter", type=str, default="", help="Part of file name for filtration"
     )
+    parser.add_argument(
+        "--use_gpu", type=bool, default=True, help="GPU utilizing"
+    )
     args = parser.parse_args()
 
     image_directory = os.path.abspath(args.image_directory)
@@ -47,6 +48,10 @@ def main():
     cell_diameter_min = int(args.cell_diameter_min)
     cell_diameter_max = int(args.cell_diameter_max)
     name_filter = args.name_filter
+    use_gpu = args.use_gpu
+
+    # Load model
+    model = models.CellposeModel(gpu=use_gpu, pretrained_model="omnipose_cyto")
 
     # Load list with processed files
     if os.path.exists(os.path.join(output_directory, "processed_files.txt")):
