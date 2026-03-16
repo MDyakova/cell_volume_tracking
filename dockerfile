@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.10-slim
 
 # Add runtime libs needed by OpenCV GUI wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
