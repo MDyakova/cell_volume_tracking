@@ -95,6 +95,9 @@ output_directory/
 * `--name_filter` (str, default `""`): run only files whose path contains this substring.
 * `--cell_diameter_min` (int, optional): minimum cell size
 * `--cell_diameter_max` (int, optional): maximum cell size
+* `--pix` (float, optional): pixel size
+* `--ref_index` (float, optional): refractive index increment
+* `--conv_factor` (float, optional): length scale conversion factor
 
 ---
 

@@ -38,6 +38,16 @@ def main():
     parser.add_argument(
         "--use_gpu", type=bool, default=True, help="GPU utilizing"
     )
+    parser.add_argument(
+        "--pix", type=float, default=0.972, help="Pixel size"
+    )
+    parser.add_argument(
+        "--ref_index", type=float, default=0.18, help="Refractive index increment"
+    )
+    parser.add_argument(
+        "--conv_factor", type=float, default=0.001, help="Length scale conversion factor"
+    )
+
     args = parser.parse_args()
 
     image_directory = os.path.abspath(args.image_directory)
@@ -49,6 +59,9 @@ def main():
     cell_diameter_max = int(args.cell_diameter_max)
     name_filter = args.name_filter
     use_gpu = args.use_gpu
+    pix = float(args.pix)
+    ref_index = float(args.ref_index)
+    conv_factor = float(args.conv_factor)
 
     # Load model
     model = models.CellposeModel(gpu=use_gpu, pretrained_model="omnipose_cyto")
@@ -62,7 +75,6 @@ def main():
         processed_files = processed_files.split("\n")
     else:
         processed_files = []
-    print(processed_files)
 
     # Go throw all subdirectories in the image_directory
     tiff_files = glob.glob(os.path.join(image_directory, "**", "*.tif"), recursive=True)
@@ -72,6 +84,7 @@ def main():
             image = tiff.imread(entire_file_name)
             # Name to save files
             file_name_save = entire_file_name.split("/")[-1].split(".tif")[0]
+            print(file_name_save)
 
             if tile_size == -1:
                 file_name = file_name_save
@@ -92,7 +105,7 @@ def main():
                     "a",
                     encoding="utf-8",
                 ) as f:
-                    f.write(f"{file_name}.tif" + "\n")
+                    f.write(f"{file_name}" + "\n")
             else:
                 results = []
                 # Split image to XY tiles
@@ -120,7 +133,7 @@ def main():
                             "a",
                             encoding="utf-8",
                         ) as f:
-                            f.write(f"{file_name}.tif" + "\n")
+                            f.write(f"{file_name}" + "\n")
 
             results = pd.DataFrame(
                 results,
@@ -138,6 +151,9 @@ def main():
                     "width",
                 ),
             )
+            # Convert integrated pixel intensities to mass
+            results["mass"] = results["integrated_density"]/ref_index*(pix**2)*conv_factor
+
             # Filter masks are closed to edges
             results["x_delta"] = results["width"] - results["x_max"]
             results["y_delta"] = results["height"] - results["y_max"]
@@ -156,6 +172,7 @@ def main():
                     "step",
                     "integrated_density",
                     "cell_area",
+                    "mass"
                 ]
             ]
             results.to_csv(
