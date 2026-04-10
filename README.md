@@ -103,11 +103,11 @@ output_directory/
 
 ## Requirements
 
-* Python 3.8
+* Python 3.10
 * CUDA-capable GPU (recommended) + NVIDIA drivers for the Docker `--gpus all` option
-* Packages pinned in `requirements.txt` (Cellpose 4.0.4, trackpy 0.7, scikit-image 0.21, OpenCV 4.11, etc.). 
+* Packages pinned in `requirements.txt` (Cellpose, trackpy, scikit-image, OpenCV, etc.). 
 
-The provided Dockerfile uses `python:3.8-slim`, adds GUI libs for OpenCV wheels, installs requirements, copies `main/` as the working directory, **and pre-caches CPSAM weights** during the image build so first inference runs faster. 
+The provided Dockerfile uses `python:3.10-slim`, adds GUI libs for OpenCV wheels, installs requirements, copies `main/` as the working directory, **and pre-caches CPSAM weights** during the image build so first inference runs faster. 
 
 ---
 
