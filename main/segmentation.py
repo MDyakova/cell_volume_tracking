@@ -153,6 +153,7 @@ def main():
             )
             # Convert integrated pixel intensities to mass
             results["mass"] = results["integrated_density"]/ref_index*(pix**2)*conv_factor
+            results["mass"] = results["mass"].apply(lambda p: np.round(p, 3))
 
             # Filter masks are closed to edges
             results["x_delta"] = results["width"] - results["x_max"]

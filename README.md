@@ -19,13 +19,17 @@ docker pull mdyakova/cell_tracking:v1
 or build the image (pre-caches Cellpose CPSAM weights during build for faster first run):
 
 ```bash
-docker build -t cell_tracking:v1 .
+docker build -t cell_tracking:v2 .
 ```
 
 Run segmentation + tracking (with GPU and a bind mount; adjust paths as needed):
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v1 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
+```
+
+```bash
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40
 ```
 
 ### Option B — Local Python (no Docker)
@@ -40,14 +44,24 @@ pip install -r requirements.txt
 2. Run:
 
 ```bash
-python3.8 main/segmentation.py \
+python3.10 main/segmentation.py \
   --image_directory "../Avik/20250624_All_Images_for_Masha/New Turgor Analysis" \
   --output_directory "../Avik/tracking_092225" \
-  --tile_size 400
-  --name_filter axl
-  --cell_diameter_min 30 
-  --cell_diameter_max 100
+  --tile_size 400 \
+  --name_filter axl \
+  --cell_diameter_min 30 \
+  --cell_diameter_max 100 \
 
+```
+
+or for 3D images
+
+```bash
+python3.10 main/segmentation_3d.py \
+  --image_directory "../Avik/Nuclear_volume_with_tracking" \
+  --output_directory "../Avik/tracking_041526" \
+  --name_filter Flatt \
+  --cell_diameter 40
 ```
 
 Dependencies are pinned in `requirements.txt`. 
@@ -99,6 +113,18 @@ output_directory/
 * `--ref_index` (float, optional): refractive index increment
 * `--conv_factor` (float, optional): length scale conversion factor
 
+### `segmentation_3d.py`
+
+* `--image_directory` (str, required): folder with TIFF stacks (searched recursively).
+* `--output_directory` (str, required): where outputs are written.
+* `--name_filter` (str, default `""`): run only files whose path contains this substring.
+* `--cell_diameter` (int, optional): cell size
+* `--dx` (float, optional): dx voxel size
+* `--dy` (float, optional): dy voxel size
+* `--dz` (float, optional): dz voxel size
+* `--iou_thr` (float, optional): minimum score to accept a match
+* `--memory` (float, optional): how long a track can disappear and still be matched later
+
 ---
 
 ## Requirements
@@ -143,6 +169,7 @@ MIT License
 ```
 main/
   segmentation.py
+  segmentation_3d.py
   utilities.py
   requirements.txt
   Dockerfile
@@ -150,6 +177,7 @@ main/
 ```
 
 * `segmentation.py` — per-cell feature extraction & visualization. 
+* `segmentation_3d.py` — per-cell feature extraction & visualization for 3D images. 
 * `utilities.py` — label-merging helpers. 
 * `requirements.txt` — pinned deps for reproducibility. 
 
