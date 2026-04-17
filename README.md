@@ -13,7 +13,7 @@ Segment, track, and quantify cell volume over time. The toolkit provides:
 Download existing image (recommended):
 
 ```bash
-docker pull mdyakova/cell_tracking:v1
+docker pull mdyakova/cell_tracking:v2
 ```
 
 or build the image (pre-caches Cellpose CPSAM weights during build for faster first run):
