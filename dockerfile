@@ -13,6 +13,8 @@ WORKDIR /main
 COPY main /main
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir -r requirements.txt
+# add ND2 support for AICSImageIO
+RUN pip install --no-cache-dir "aicsimageio[nd2]"
 
 # Pre-cache CPSAM weights during build
 RUN python - <<'PY'

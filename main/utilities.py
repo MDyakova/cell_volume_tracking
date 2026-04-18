@@ -396,7 +396,7 @@ def make_3d_segmentation(
         tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
 
         cmd = [
-            "python3.8", "-m", "cellpose",
+            "python3.10", "-m", "cellpose",
             "--image_path", crop_path,
             "--do_3D",
             "--save_tif",
@@ -419,7 +419,7 @@ def make_3d_segmentation(
         image = tiff.imread(image_path)
         labels = tiff.imread(labels_path)
         # remove outliers
-        labels = remove_outliers(labels, min_size=min_size, max_size=None)
+        labels = remove_outliers(labels, min_size=min_size, max_size=max_size)
         # compute label sizes
         df = compute_sizes(labels, dx_new, dy_new, dz)
 
@@ -449,7 +449,9 @@ def make_3d_segmentation(
     # 3D tracking
     aligned_labels_2d, shifts = align_all_labels_2d(all_labels_2d, reference_idx=0)
     all_labels_2d = np.stack(aligned_labels_2d, axis=0)
-    all_labels_2d = all_labels_2d.astype('int')
+    all_labels_2d = [
+                    np.nan_to_num(x, nan=0, posinf=0, neginf=0).astype(np.int32)
+                    for x in all_labels_2d]
     _, records = track_masks_iou(
         all_labels_2d, iou_thr=iou_thr, memory=memory
     )

@@ -60,7 +60,7 @@ def main():
     #     "--w_size", type=float, default=0.1, help="Weight of size similarity"
     # )
     parser.add_argument(
-        "--edge_pos", type=float, default=0.1, help="Distance from boarders"
+        "--edge_pos", type=float, default=30, help="Distance from boarders"
     )
 
     args = parser.parse_args()
