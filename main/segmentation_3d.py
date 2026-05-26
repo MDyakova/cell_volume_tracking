@@ -53,6 +53,12 @@ def main():
     parser.add_argument(
         "--max_size", type=int, default=None, help="Max cell size"
     )
+    parser.add_argument(
+        "--min_value", type=int, default=0, help="Min signal"
+    )
+    parser.add_argument(
+        "--max_value", type=int, default=None, help="Max signal"
+    )
     # parser.add_argument(
     #     "--w_3d", type=float, default=0.0, help="Weight of full 3D IoU"
     # )
@@ -82,6 +88,12 @@ def main():
     else:
         max_size = None
 
+    min_value = int(args.min_value)
+    if args.max_value is not None:
+        max_value = int(args.max_value)
+    else:
+        max_value = None
+
     # score = w_xy * IoU_xy + w_3d * IoU_3d + w_size * size_similarity
     iou_thr = float(args.iou_thr)
     memory = int(args.memory)
@@ -102,7 +114,9 @@ def main():
         # 'w_size':w_size,
         'edge_pos':edge_pos,
         'min_size':min_size,
-        'max_size':max_size
+        'max_size':max_size,
+        'min_value':min_value,
+        'max_value':max_value,
     }
 
 

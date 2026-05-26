@@ -13,23 +13,24 @@ Segment, track, and quantify cell volume over time. The toolkit provides:
 Download existing image (recommended):
 
 ```bash
-docker pull mdyakova/cell_tracking:v2
+docker pull mdyakova/cell_tracking:v3
 ```
 
 or build the image (pre-caches Cellpose CPSAM weights during build for faster first run):
 
 ```bash
-docker build -t cell_tracking:v2 .
+docker build -t cell_tracking:v3 .
 ```
 
 Run segmentation + tracking (with GPU and a bind mount; adjust paths as needed):
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v3 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
 ```
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v3 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40 --min_value 1000 --min_size 1000 --max_value 7000
+
 ```
 
 ### Option B — Local Python (no Docker)
@@ -61,7 +62,11 @@ python3.10 main/segmentation_3d.py \
   --image_directory "../Avik/Nuclear_volume_with_tracking" \
   --output_directory "../Avik/tracking_041526" \
   --name_filter Flatt \
-  --cell_diameter 40
+  --cell_diameter 40 \
+  --min_value 1000 \
+  --min_size 1000 \
+  --max_value 7000
+
 ```
 
 Dependencies are pinned in `requirements.txt`. 
@@ -124,6 +129,10 @@ output_directory/
 * `--dz` (float, optional): dz voxel size
 * `--iou_thr` (float, optional): minimum score to accept a match
 * `--memory` (float, optional): how long a track can disappear and still be matched later
+* `--min_value` (int, optional): minimal pixel value
+* `--max_value` (int, optional): maxi,al pixel value
+* `--min_size` (int, optional): minimal segmented object size
+* `--max_size` (int, optional): maximal segmented object size
 
 ---
 

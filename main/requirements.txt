@@ -1,12 +1,12 @@
 --extra-index-url https://download.pytorch.org/whl/cu128
 
+cellpose==4.0.4
 numpy
 pandas
 matplotlib
 scikit-image
 tifffile
 Pillow
-cellpose
 opencv-python-headless
 openpyxl
 torch
