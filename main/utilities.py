@@ -18,6 +18,7 @@ from aicsimageio import AICSImage
 from skimage.transform import resize
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import shift as ndi_shift
+from skimage.measure import block_reduce
 
 
 # Function to join mask pairs
@@ -360,6 +361,8 @@ def make_3d_segmentation(
     memory = params_dict['memory']
     min_size = params_dict['min_size']
     max_size = params_dict['max_size']
+    min_value = params_dict['min_value']
+    max_value = params_dict['max_value']
     # w_3d = params_dict['w_3d']
     # w_size = params_dict['w_size']
 
@@ -367,6 +370,8 @@ def make_3d_segmentation(
     dx_new = dx * resize_factor
     dy_new = dy * resize_factor
     dz_new = dz
+
+    anisotropy = dx_new/dz_new
 
     output_folder = os.path.join(output_directory, folder)
     os.makedirs(output_folder, exist_ok=True)
@@ -385,13 +390,27 @@ def make_3d_segmentation(
         file_name_save = file_name.split(".nd2")[0]
         print(folder, file_name_save)
 
-        arr_resized = resize(
-            image, 
-            (image.shape[0], image.shape[1]//resize_factor, image.shape[2]//resize_factor), 
-            order=1,           # bilinear
-            preserve_range=True,
-            anti_aliasing=True
-        ).astype(image.dtype)
+        # arr_resized = resize(
+        #     image, 
+        #     (image.shape[0], image.shape[1]//resize_factor, image.shape[2]//resize_factor), 
+        #     order=1,           # bilinear
+        #     preserve_range=True,
+        #     anti_aliasing=True
+        # ).astype(image.dtype)
+
+        arr_resized = block_reduce(
+            image,
+            block_size=(1, resize_factor, resize_factor),
+            func=np.mean
+        )
+
+        # print(arr_resized.shape, arr_sum.shape)
+
+        # remove signal outliers
+        if max_value is not None:
+            arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
+        arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
+
         crop_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
         tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
 
@@ -402,11 +421,13 @@ def make_3d_segmentation(
             "--save_tif",
             "--use_gpu",
             "--diameter", str(cell_diameter),
+            # "--anisotropy", "0.75"
         ]
-        
+           
         subprocess.run(cmd, check=True)
 
     # Find all labels and clean
+    all_images = []
     all_labels = []
     all_labels_2d = []
     all_names = []
@@ -421,7 +442,7 @@ def make_3d_segmentation(
         # remove outliers
         labels = remove_outliers(labels, min_size=min_size, max_size=max_size)
         # compute label sizes
-        df = compute_sizes(labels, dx_new, dy_new, dz)
+        df = compute_sizes(image, labels, dx_new, dy_new, dz, resize_factor)
 
         # remove z outliers
         labels, df = remove_outliers_pos(labels, df, edge_pos=edge_pos)
@@ -435,6 +456,7 @@ def make_3d_segmentation(
         print(file_name, labels.shape)
         all_names.append(file_name)
         all_df.append(df)
+        # all_images.append(image)
 
     # # 3D tracking
     # assignments, records = track_masks_3d_projection(
@@ -483,18 +505,46 @@ def make_3d_segmentation(
                 label_i = record['label']
                 track_id_i = record['track_id']
                 df.loc[df['label'] == label_i, 'track_id'] = track_id_i
-        new_df.append(df[['folder', 'file_name', 'track_id', 'size', 'volume', 'x', 'y', 'z']])
+        new_df.append(df[['folder', 'file_name', 'track_id', 'size', 'volume', 'integrated_density', 'x', 'y', 'z']])
     new_df = pd.concat(new_df)
     new_df['file_name'] = new_df['file_name'].apply(lambda p: p.replace('.nd2', ''))
-    new_df = new_df.pivot_table(columns='file_name', 
-                                index=['folder', 'track_id'], 
-                                values='volume', 
-                                aggfunc='max').reset_index(drop=False)
-    new_columns = ['folder', 'track_id']
-    all_files = [file.replace('.nd2', '') for file in all_files]
-    new_columns.extend(all_files)
+    # new_df = new_df.pivot_table(columns='file_name', 
+    #                             index=['folder', 'track_id'], 
+    #                             values=['volume', 'integrated_density'], 
+    #                             aggfunc='max').reset_index(drop=False)
+    new_df = (
+        new_df.pivot_table(
+            columns='file_name',
+            index=['folder', 'track_id'],
+            values=['volume', 'integrated_density'],
+            aggfunc='max'
+        )
+        .reset_index()
+    )
+
+    # flatten columns
+    new_df.columns = [
+        f"{col[1]}_{col[0]}" if col[1] else col[0]
+        for col in new_df.columns
+    ]
+
+    # new_columns = ['folder', 'track_id']
+    new_columns = []
+    all_cols = [col.replace('.nd2', '') for col in new_df.columns]
+    new_columns.extend(all_cols)
     new_df = new_df[new_columns]
-    new_df = new_df[~new_df[all_files].isna().any(axis=1)]
+    new_df = new_df[~new_df[all_cols].isna().any(axis=1)]
+
+    base_cols = ['folder', 'track_id']
+    volume_cols = sorted(
+        [c for c in new_df.columns if c.endswith('_volume')]
+    )
+    density_cols = sorted(
+        [c for c in new_df.columns if c.endswith('_integrated_density')]
+    )
+    new_df = new_df[
+        base_cols + volume_cols + density_cols
+    ]
 
     new_df.to_csv(os.path.join(output_folder, f'results_{folder}.csv'), index=None)
 
@@ -543,18 +593,26 @@ def remove_outliers(labels, min_size=1000, max_size=None):
     labels[mask_found]=0
     return labels
 
-def compute_sizes(labels, dx, dy, dz):
+def compute_sizes(image, labels, dx, dy, dz, resize_factor):
     '''
     Clean very small and big labels
     '''
     # Get all non-zero coordinates and their labels
     z, y, x = np.nonzero(labels)
     labels_df = labels[z, y, x]
+    values = image[z, y, x]
     # Create DataFrame
-    df = pd.DataFrame({'label': labels_df, 'z': z, 'y': y, 'x': x})
+    df = pd.DataFrame({'label': labels_df, 'z': z, 'y': y, 'x': x, 'values':values})
     df['size'] = 1
-    df = df.groupby(by=['label'], as_index=False).agg({'z':'mean', 'y':'mean', 'x':'mean', 'size':'sum'})
+    df = df.groupby(by=['label'], as_index=False).agg({'z':'mean', 
+                                                       'y':'mean', 
+                                                       'x':'mean', 
+                                                       'size':'sum', 
+                                                       'values':'sum'})
+    # Compute volume
     df['volume']=df['size']*dx*dy*dz
+    # Compute integrated density
+    df['integrated_density']=df['values']*(resize_factor**2)
     
     return df
 
