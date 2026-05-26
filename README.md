@@ -129,10 +129,10 @@ output_directory/
 * `--dz` (float, optional): dz voxel size
 * `--iou_thr` (float, optional): minimum score to accept a match
 * `--memory` (float, optional): how long a track can disappear and still be matched later
-* `--min_value` (int, optional): minimal pixel value
-* `--max_value` (int, optional): maxi,al pixel value
-* `--min_size` (int, optional): minimal segmented object size
-* `--max_size` (int, optional): maximal segmented object size
+* `--min_value` (int, optional): minimum pixel value
+* `--max_value` (int, optional): maximum pixel value
+* `--min_size` (int, optional): minimum segmented object size
+* `--max_size` (int, optional): maximum segmented object size
 
 ---
 
