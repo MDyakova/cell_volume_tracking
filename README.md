@@ -13,23 +13,23 @@ Segment, track, and quantify cell volume over time. The toolkit provides:
 Download existing image (recommended):
 
 ```bash
-docker pull mdyakova/cell_tracking:v3
+docker pull mdyakova/cell_tracking:v2.1
 ```
 
 or build the image (pre-caches Cellpose CPSAM weights during build for faster first run):
 
 ```bash
-docker build -t cell_tracking:v3 .
+docker build -t cell_tracking:v2.1 .
 ```
 
 Run segmentation + tracking (with GPU and a bind mount; adjust paths as needed):
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v3 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2.1 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
 ```
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v3 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40 --min_value 1000 --min_size 1000 --max_value 7000
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2.1 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40 --min_value 1000 --min_size 1000 --max_value 7000
 
 ```
 
@@ -133,6 +133,10 @@ output_directory/
 * `--max_value` (int, optional): maximum pixel value
 * `--min_size` (int, optional): minimum segmented object size
 * `--max_size` (int, optional): maximum segmented object size
+* `--edge_pos` (int, optional): distance from boarders"
+* `--anisotropy` (float, optional): corrects Z spacing
+* `--flow_threshold` (float, optional): maximum allowed error of the flows for each mask
+* `--cellprob_threshold` (float, optional): pixels greater than the cellprob_threshold are used to run dynamics and determine ROIs
 
 ---
 

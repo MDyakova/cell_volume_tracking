@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu128
 
-cellpose==4.0.4
+cellpose
 numpy
 pandas
 matplotlib
