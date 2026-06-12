@@ -363,8 +363,9 @@ def make_3d_segmentation(
     max_size = params_dict['max_size']
     min_value = params_dict['min_value']
     max_value = params_dict['max_value']
-    # w_3d = params_dict['w_3d']
-    # w_size = params_dict['w_size']
+    anisotropy = params_dict['anisotropy']
+    flow_threshold = params_dict['flow_threshold']
+    cellprob_threshold = params_dict['cellprob_threshold']
 
     # New voxel sizes
     dx_new = dx * resize_factor
@@ -421,7 +422,9 @@ def make_3d_segmentation(
             "--save_tif",
             "--use_gpu",
             "--diameter", str(cell_diameter),
-            # "--anisotropy", "0.75"
+            "--anisotropy", str(anisotropy),
+            "--flow_threshold", str(flow_threshold),
+            "--cellprob_threshold", str(cellprob_threshold),
         ]
            
         subprocess.run(cmd, check=True)
