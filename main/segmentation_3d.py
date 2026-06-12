@@ -59,14 +59,17 @@ def main():
     parser.add_argument(
         "--max_value", type=int, default=None, help="Max signal"
     )
-    # parser.add_argument(
-    #     "--w_3d", type=float, default=0.0, help="Weight of full 3D IoU"
-    # )
-    # parser.add_argument(
-    #     "--w_size", type=float, default=0.1, help="Weight of size similarity"
-    # )
     parser.add_argument(
         "--edge_pos", type=float, default=30, help="Distance from boarders"
+    )
+    parser.add_argument(
+        "--anisotropy", type=float, default=1.0, help="Corrects Z spacing"
+    )
+    parser.add_argument(
+        "--flow_threshold", type=float, default=0.4, help="Higher = fewer objects"
+    )
+    parser.add_argument(
+        "--cellprob_threshold", type=float, default=0.0, help="Lower = more sensitive"
     )
 
     args = parser.parse_args()
@@ -97,10 +100,9 @@ def main():
     # score = w_xy * IoU_xy + w_3d * IoU_3d + w_size * size_similarity
     iou_thr = float(args.iou_thr)
     memory = int(args.memory)
-    # max_xy_dist = int(args.max_xy_dist)
-    # w_xy = float(args.w_xy)
-    # w_3d = float(args.w_3d)
-    # w_size = float(args.w_size)
+    anisotropy = float(args.anisotropy)
+    flow_threshold = float(args.flow_threshold)
+    cellprob_threshold = float(args.cellprob_threshold)
 
     params_dict = {
         'dx':dx,
@@ -108,15 +110,14 @@ def main():
         'dz':dz,
         'iou_thr':iou_thr,
         'memory':memory,
-        # 'max_xy_dist':max_xy_dist,
-        # 'w_xy':w_xy,
-        # 'w_3d':w_3d,
-        # 'w_size':w_size,
         'edge_pos':edge_pos,
         'min_size':min_size,
         'max_size':max_size,
         'min_value':min_value,
         'max_value':max_value,
+        'anisotropy':anisotropy,
+        'flow_threshold':flow_threshold,
+        'cellprob_threshold':cellprob_threshold,
     }
 
 
@@ -134,19 +135,22 @@ def main():
     all_folders = os.listdir(image_directory)
     for folder in all_folders:
         if (name_filter in folder) & (folder not in processed_files):
-            make_3d_segmentation(
-                        image_directory,
-                        output_directory,
-                        folder,
-                        resize_factor,
-                        cell_diameter,
-                        params_dict)
-            with open(
-                os.path.join(output_directory, "processed_files.txt"),
-                "a",
-                encoding="utf-8",
-            ) as f:
-                f.write(f"{folder}" + "\n")
+            try:
+                make_3d_segmentation(
+                            image_directory,
+                            output_directory,
+                            folder,
+                            resize_factor,
+                            cell_diameter,
+                            params_dict)
+                with open(
+                    os.path.join(output_directory, "processed_files.txt"),
+                    "a",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(f"{folder}" + "\n")
+            except Exception as e:
+                print(folder, e)
 
 
 
