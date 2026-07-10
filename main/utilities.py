@@ -401,9 +401,11 @@ def make_3d_segmentation(
 
         arr_resized = block_reduce(
             image,
-            block_size=(1, resize_factor, resize_factor),
+            block_size=(1, 1, resize_factor, resize_factor),
             func=np.mean
         )
+
+        print(arr_resized.shape)
 
         # print(arr_resized.shape, arr_sum.shape)
 
@@ -411,12 +413,21 @@ def make_3d_segmentation(
         if max_value is not None:
             arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
         arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
+        arr_resized = np.transpose(arr_resized, (1, 2, 3, 0))
+        arr_resized = arr_resized[:, :, :, :2]
+        arr_nuclei = arr_resized[:, :, :, 0]
+        arr_membrane = arr_resized[:, :, :, 1]
+        print(arr_resized.shape)
 
         crop_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
         tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
+        nuclei_path = os.path.join(output_folder, f"{file_name_save}_nuclei.tif")
+        tiff.imwrite(nuclei_path, arr_nuclei.astype(np.uint16))
+        membrane_path = os.path.join(output_folder, f"{file_name_save}_membrane.tif")
+        tiff.imwrite(membrane_path, arr_membrane.astype(np.uint16))
 
         cmd = [
-            "python3.10", "-m", "cellpose",
+            "python3.8", "-m", "cellpose",
             "--image_path", crop_path,
             "--do_3D",
             "--save_tif",
@@ -425,6 +436,8 @@ def make_3d_segmentation(
             "--anisotropy", str(anisotropy),
             "--flow_threshold", str(flow_threshold),
             "--cellprob_threshold", str(cellprob_threshold),
+            "--z_axis", "0",
+            "--channel_axis", "3",
         ]
            
         subprocess.run(cmd, check=True)
@@ -573,8 +586,10 @@ def nd2_to_tiff(entire_file_name):
     # Convert image to tif
     img = AICSImage(entire_file_name)
     data = img.get_image_data("CZYX", T=0)
+    # data = img.get_image_data("XYCZT", T=0)
     # tiff.imwrite(os.path.join('Nuclear_volume_with_tracking', folder, file_name.replace('.nd2', '.tif')), data[0])
-    return data[0]
+    # return data[0]
+    return data
 
 def remove_outliers(labels, min_size=1000, max_size=None):
     '''
@@ -602,8 +617,10 @@ def compute_sizes(image, labels, dx, dy, dz, resize_factor):
     '''
     # Get all non-zero coordinates and their labels
     z, y, x = np.nonzero(labels)
+    image_nuclei = image[:, :, :, 0]
     labels_df = labels[z, y, x]
-    values = image[z, y, x]
+    # values = image[z, y, x]
+    values = image_nuclei[z, y, x]
     # Create DataFrame
     df = pd.DataFrame({'label': labels_df, 'z': z, 'y': y, 'x': x, 'values':values})
     df['size'] = 1

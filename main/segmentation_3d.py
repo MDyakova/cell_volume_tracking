@@ -135,22 +135,22 @@ def main():
     all_folders = os.listdir(image_directory)
     for folder in all_folders:
         if (name_filter in folder) & (folder not in processed_files):
-            try:
-                make_3d_segmentation(
-                            image_directory,
-                            output_directory,
-                            folder,
-                            resize_factor,
-                            cell_diameter,
-                            params_dict)
-                with open(
-                    os.path.join(output_directory, "processed_files.txt"),
-                    "a",
-                    encoding="utf-8",
-                ) as f:
-                    f.write(f"{folder}" + "\n")
-            except Exception as e:
-                print(folder, e)
+            # try:
+            make_3d_segmentation(
+                        image_directory,
+                        output_directory,
+                        folder,
+                        resize_factor,
+                        cell_diameter,
+                        params_dict)
+            with open(
+                os.path.join(output_directory, "processed_files.txt"),
+                "a",
+                encoding="utf-8",
+            ) as f:
+                f.write(f"{folder}" + "\n")
+            # except Exception as e:
+            #     print(folder, e)
 
 
 
