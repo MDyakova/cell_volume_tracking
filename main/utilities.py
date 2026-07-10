@@ -401,11 +401,9 @@ def make_3d_segmentation(
 
         arr_resized = block_reduce(
             image,
-            block_size=(1, 1, resize_factor, resize_factor),
+            block_size=(1, resize_factor, resize_factor),
             func=np.mean
         )
-
-        print(arr_resized.shape)
 
         # print(arr_resized.shape, arr_sum.shape)
 
@@ -413,21 +411,12 @@ def make_3d_segmentation(
         if max_value is not None:
             arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
         arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
-        arr_resized = np.transpose(arr_resized, (1, 2, 3, 0))
-        arr_resized = arr_resized[:, :, :, :2]
-        arr_nuclei = arr_resized[:, :, :, 0]
-        arr_membrane = arr_resized[:, :, :, 1]
-        print(arr_resized.shape)
 
         crop_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
         tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
-        nuclei_path = os.path.join(output_folder, f"{file_name_save}_nuclei.tif")
-        tiff.imwrite(nuclei_path, arr_nuclei.astype(np.uint16))
-        membrane_path = os.path.join(output_folder, f"{file_name_save}_membrane.tif")
-        tiff.imwrite(membrane_path, arr_membrane.astype(np.uint16))
 
         cmd = [
-            "python3.8", "-m", "cellpose",
+            "python3.10", "-m", "cellpose",
             "--image_path", crop_path,
             "--do_3D",
             "--save_tif",
@@ -436,8 +425,6 @@ def make_3d_segmentation(
             "--anisotropy", str(anisotropy),
             "--flow_threshold", str(flow_threshold),
             "--cellprob_threshold", str(cellprob_threshold),
-            "--z_axis", "0",
-            "--channel_axis", "3",
         ]
            
         subprocess.run(cmd, check=True)
@@ -1084,3 +1071,225 @@ def align_all_labels_2d(all_labels_2d, reference_idx=0, binary_for_shift=True):
         shifts.append(tuple(shift))
 
     return aligned, shifts
+
+def make_3d_membrane_segmentation(
+                image_directory,
+                output_directory,
+                folder,
+                resize_factor,
+                cell_diameter,
+                params_dict
+            ):
+
+    # Load parameters
+    dx = params_dict['dx']
+    dy = params_dict['dy']
+    dz = params_dict['dz']
+    edge_pos = params_dict['edge_pos']
+    iou_thr = params_dict['iou_thr']
+    memory = params_dict['memory']
+    min_size = params_dict['min_size']
+    max_size = params_dict['max_size']
+    min_value = params_dict['min_value']
+    max_value = params_dict['max_value']
+    anisotropy = params_dict['anisotropy']
+    flow_threshold = params_dict['flow_threshold']
+    cellprob_threshold = params_dict['cellprob_threshold']
+
+    # New voxel sizes
+    dx_new = dx * resize_factor
+    dy_new = dy * resize_factor
+    dz_new = dz
+
+    anisotropy = dx_new/dz_new
+
+    output_folder = os.path.join(output_directory, folder)
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Cell segmentation
+    all_files = os.listdir(os.path.join(image_directory, folder))
+    all_files = list(filter(lambda p: ('nd2' in p) & ('Zone' not in p), all_files))
+    all_files = sorted(
+        all_files,
+        key=lambda x: int(re.search(r'(\d+)(?=\.nd2$)', x).group())
+    )
+    for file_name in all_files:
+        # Convert image to tif
+        image = nd2_to_tiff(os.path.join(image_directory, folder, file_name))
+        # Name to save files
+        file_name_save = file_name.split(".nd2")[0]
+
+        arr_resized = block_reduce(
+            image,
+            block_size=(1, 1, resize_factor, resize_factor),
+            func=np.mean
+        )
+
+        # remove signal outliers
+        if max_value is not None:
+            arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
+        arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
+        arr_resized = np.transpose(arr_resized, (1, 2, 3, 0))
+        arr_resized = arr_resized[:, :, :, :2]
+        arr_nuclei = arr_resized[:, :, :, 0]
+        arr_membrane = arr_resized[:, :, :, 1]
+
+        crop_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
+        tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
+        nuclei_path = os.path.join(output_folder, f"{file_name_save}_nuclei.tif")
+        tiff.imwrite(nuclei_path, arr_nuclei.astype(np.uint16))
+        membrane_path = os.path.join(output_folder, f"{file_name_save}_membrane.tif")
+        tiff.imwrite(membrane_path, arr_membrane.astype(np.uint16))
+
+        cmd = [
+            "python3.10", "-m", "cellpose",
+            "--image_path", crop_path,
+            "--do_3D",
+            "--save_tif",
+            "--use_gpu",
+            "--diameter", str(cell_diameter),
+            "--anisotropy", str(anisotropy),
+            "--flow_threshold", str(flow_threshold),
+            "--cellprob_threshold", str(cellprob_threshold),
+            "--z_axis", "0",
+            "--channel_axis", "3",
+        ]
+           
+        subprocess.run(cmd, check=True)
+
+    # Find all labels and clean
+    all_images = []
+    all_labels = []
+    all_labels_2d = []
+    all_names = []
+    all_df = []
+    for file_name in all_files:
+        file_name_save = file_name.split(".nd2")[0]
+        image_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
+        labels_path = os.path.join(output_folder, f"{file_name_save}_res_cp_masks.tif")
+
+        image = tiff.imread(image_path)
+        labels = tiff.imread(labels_path)
+        # remove outliers
+        labels = remove_outliers(labels, min_size=min_size, max_size=max_size)
+        # compute label sizes
+        df = compute_sizes(image, labels, dx_new, dy_new, dz, resize_factor)
+
+        # remove z outliers
+        labels, df = remove_outliers_pos(labels, df, edge_pos=edge_pos)
+
+        # make 2D label images
+        labels_2d = make_2d_labels(labels)
+
+        # save to lists
+        all_labels.append(labels)
+        all_labels_2d.append(np.array(labels_2d))
+        print(file_name, labels.shape)
+        all_names.append(file_name)
+        all_df.append(df)
+        # all_images.append(image)
+
+    # 3D tracking
+    aligned_labels_2d, shifts = align_all_labels_2d(all_labels_2d, reference_idx=0)
+    all_labels_2d = np.stack(aligned_labels_2d, axis=0)
+    all_labels_2d = [
+                    np.nan_to_num(x, nan=0, posinf=0, neginf=0).astype(np.int32)
+                    for x in all_labels_2d]
+    _, records = track_masks_iou(
+        all_labels_2d, iou_thr=iou_thr, memory=memory
+    )
+
+    all_tracked_files = []
+    for frame, labels in enumerate(all_labels):
+        # Change label id to track id
+        tracking = np.zeros_like(labels)
+        for record in records:
+            frame_i = record["frame"]
+            label_i = record["label"]
+            track_id_i = record["track_id"]
+            if frame == frame_i:
+                tracking = np.where(
+                    labels == label_i, track_id_i, tracking
+                )
+        all_tracked_files.append(tracking)
+
+    # Change labels for all tracks 
+    new_df = []
+    for frame, (df, name) in enumerate(zip(all_df, all_names)):
+        df['folder'] = folder
+        df['track_id'] = 0
+        df['file_name'] = name
+        for record in records:
+            if record['frame'] == frame:
+                label_i = record['label']
+                track_id_i = record['track_id']
+                df.loc[df['label'] == label_i, 'track_id'] = track_id_i
+        new_df.append(df[['folder', 'file_name', 'track_id', 'size', 'volume', 'integrated_density', 'x', 'y', 'z']])
+    new_df = pd.concat(new_df)
+    new_df['file_name'] = new_df['file_name'].apply(lambda p: p.replace('.nd2', ''))
+
+    # new_df = (
+    #     new_df.pivot_table(
+    #         columns='file_name',
+    #         index=['folder', 'track_id'],
+    #         values=['volume', 'integrated_density'],
+    #         aggfunc='max'
+    #     )
+    #     .reset_index()
+    # )
+
+    new_df = (
+        new_df.pivot_table(
+            columns='file_name',
+            index=['folder', 'track_id'],
+            values=['volume'],
+            aggfunc='max'
+        )
+        .reset_index()
+    )
+
+    # flatten columns
+    new_df.columns = [
+        f"{col[1]}_{col[0]}" if col[1] else col[0]
+        for col in new_df.columns
+    ]
+
+    new_columns = []
+    all_cols = [col.replace('.nd2', '') for col in new_df.columns]
+    new_columns.extend(all_cols)
+    new_df = new_df[new_columns]
+    new_df = new_df[~new_df[all_cols].isna().any(axis=1)]
+
+    base_cols = ['folder', 'track_id']
+    volume_cols = sorted(
+        [c for c in new_df.columns if c.endswith('_volume')]
+    )
+    # density_cols = sorted(
+    #     [c for c in new_df.columns if c.endswith('_integrated_density')]
+    # )
+    # new_df = new_df[
+    #     base_cols + volume_cols + density_cols
+    # ]
+    new_df = new_df[
+        base_cols + volume_cols
+    ]
+
+    new_df.to_csv(os.path.join(output_folder, f'results_{folder}.csv'), index=None)
+
+    all_track_ids = pd.unique(new_df['track_id'])
+    for frame, (labels, name) in enumerate(zip(all_tracked_files, all_names)):
+    # Remove incorrect labels
+        mask_found = ~np.isin(labels, all_track_ids)
+        labels[mask_found]=0
+        labels_path = os.path.join(output_folder, name.replace('.nd2', '_labels.tif'))
+        tiff.imwrite(
+            labels_path,
+            labels.astype(np.uint16),
+        )
+    # Delete temporary files
+    all_files = os.listdir(os.path.join(output_folder))
+    all_files = list(filter(lambda p: ('.npy' in p), all_files))
+    for file in all_files:
+        path = os.path.join(output_folder, file)
+        if os.path.exists(path):
+            os.remove(path)
