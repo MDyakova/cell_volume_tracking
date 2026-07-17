@@ -29,7 +29,7 @@ docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_fi
 ```
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2.1 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Flatt --cell_diameter 40 --min_value 1000 --min_size 1000 --max_value 7000
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" cell_tracking:v5 python segmentation_3d.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --cell_diameter 40 --min_size 100 --channels_for_volume "[0,1]" --channels_for_intens "[1]" --channels_names "[green,red]"
 
 ```
 
@@ -123,6 +123,9 @@ output_directory/
 * `--image_directory` (str, required): folder with TIFF stacks (searched recursively).
 * `--output_directory` (str, required): where outputs are written.
 * `--name_filter` (str, default `""`): run only files whose path contains this substring.
+* `--channels_for_volume` (str, required): list of channels to compute cell volume (for example, "[0,1]").
+* `--channels_for_intens` (str, required): list of channels to compute cell intensity ("[1]").
+* `--channels_names` (str, required): list of channels names ("[red,green]").
 * `--cell_diameter` (int, optional): cell size
 * `--dx` (float, optional): dx voxel size
 * `--dy` (float, optional): dy voxel size

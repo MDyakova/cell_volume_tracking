@@ -366,6 +366,9 @@ def make_3d_segmentation(
     anisotropy = params_dict['anisotropy']
     flow_threshold = params_dict['flow_threshold']
     cellprob_threshold = params_dict['cellprob_threshold']
+    channels_for_volume = params_dict['channels_for_volume']
+    channels_for_intens = params_dict['channels_for_intens']
+    channels_names = params_dict['channels_names']
 
     # New voxel sizes
     dx_new = dx * resize_factor
@@ -391,43 +394,34 @@ def make_3d_segmentation(
         file_name_save = file_name.split(".nd2")[0]
         print(folder, file_name_save)
 
-        # arr_resized = resize(
-        #     image, 
-        #     (image.shape[0], image.shape[1]//resize_factor, image.shape[2]//resize_factor), 
-        #     order=1,           # bilinear
-        #     preserve_range=True,
-        #     anti_aliasing=True
-        # ).astype(image.dtype)
+        for ch_v, ch_n in zip(channels_for_volume, channels_names):
+            arr_resized = block_reduce(
+                image[ch_v],
+                block_size=(1, resize_factor, resize_factor),
+                func=np.mean
+            )
 
-        arr_resized = block_reduce(
-            image,
-            block_size=(1, resize_factor, resize_factor),
-            func=np.mean
-        )
+            # remove signal outliers
+            if max_value is not None:
+                arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
+            arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
 
-        # print(arr_resized.shape, arr_sum.shape)
+            crop_path = os.path.join(output_folder, f"{file_name_save}_{ch_n}_res.tif")
+            tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
 
-        # remove signal outliers
-        if max_value is not None:
-            arr_resized = np.where(arr_resized<=max_value, arr_resized, max_value)
-        arr_resized = np.where(arr_resized>=min_value, arr_resized, 0)
-
-        crop_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
-        tiff.imwrite(crop_path, arr_resized.astype(np.uint16))
-
-        cmd = [
-            "python3.10", "-m", "cellpose",
-            "--image_path", crop_path,
-            "--do_3D",
-            "--save_tif",
-            "--use_gpu",
-            "--diameter", str(cell_diameter),
-            "--anisotropy", str(anisotropy),
-            "--flow_threshold", str(flow_threshold),
-            "--cellprob_threshold", str(cellprob_threshold),
-        ]
-           
-        subprocess.run(cmd, check=True)
+            cmd = [
+                "python3.10", "-m", "cellpose",
+                "--image_path", crop_path,
+                "--do_3D",
+                "--save_tif",
+                "--use_gpu",
+                "--diameter", str(cell_diameter),
+                "--anisotropy", str(anisotropy),
+                "--flow_threshold", str(flow_threshold),
+                "--cellprob_threshold", str(cellprob_threshold),
+            ]
+            
+            subprocess.run(cmd, check=True)
 
     # Find all labels and clean
     all_images = []
@@ -437,40 +431,32 @@ def make_3d_segmentation(
     all_df = []
     for file_name in all_files:
         file_name_save = file_name.split(".nd2")[0]
-        image_path = os.path.join(output_folder, f"{file_name_save}_res.tif")
-        labels_path = os.path.join(output_folder, f"{file_name_save}_res_cp_masks.tif")
+        for ch_v, ch_n in zip(channels_for_volume, channels_names):
+            file_name_ch = f"{file_name_save}_{ch_n}.nd2"
+            image_path = os.path.join(output_folder, f"{file_name_save}_{ch_n}_res.tif")
+            labels_path = os.path.join(output_folder, f"{file_name_save}_{ch_n}_res_cp_masks.tif")
 
-        image = tiff.imread(image_path)
-        labels = tiff.imread(labels_path)
-        # remove outliers
-        labels = remove_outliers(labels, min_size=min_size, max_size=max_size)
-        # compute label sizes
-        df = compute_sizes(image, labels, dx_new, dy_new, dz, resize_factor)
+            image = tiff.imread(image_path)
+            labels = tiff.imread(labels_path)
+            # remove outliers
+            labels = remove_outliers(labels, min_size=min_size, max_size=max_size)
+            # compute label sizes
+            df = compute_sizes(image, labels, dx_new, dy_new, dz, resize_factor)
 
-        # remove z outliers
-        labels, df = remove_outliers_pos(labels, df, edge_pos=edge_pos)
+            # remove z outliers
+            labels, df = remove_outliers_pos(labels, df, edge_pos=edge_pos)
 
-        # make 2D label images
-        labels_2d = make_2d_labels(labels)
+            # make 2D label images
+            labels_2d = make_2d_labels(labels)
 
-        # save to lists
-        all_labels.append(labels)
-        all_labels_2d.append(np.array(labels_2d))
-        print(file_name, labels.shape)
-        all_names.append(file_name)
-        all_df.append(df)
-        # all_images.append(image)
+            # save to lists
+            all_labels.append(labels)
+            all_labels_2d.append(np.array(labels_2d))
+            print(file_name, labels.shape)
+            all_names.append(file_name_ch)
+            all_df.append(df)
+            # all_images.append(image)
 
-    # # 3D tracking
-    # assignments, records = track_masks_3d_projection(
-    #     all_labels,
-    #     score_thr=score_thr,
-    #     memory=memory,
-    #     max_xy_dist=max_xy_dist,
-    #     w_xy=w_xy,
-    #     w_3d=w_3d,
-    #     w_size=w_size,
-    # )
     # 3D tracking
     aligned_labels_2d, shifts = align_all_labels_2d(all_labels_2d, reference_idx=0)
     all_labels_2d = np.stack(aligned_labels_2d, axis=0)
@@ -495,8 +481,6 @@ def make_3d_segmentation(
                 )
         all_tracked_files.append(tracking)
 
-    # tracked_labels = relabel_masks_by_tracks(all_labels, assignments)
-
     # Change labels for all tracks 
     new_df = []
     for frame, (df, name) in enumerate(zip(all_df, all_names)):
@@ -511,10 +495,7 @@ def make_3d_segmentation(
         new_df.append(df[['folder', 'file_name', 'track_id', 'size', 'volume', 'integrated_density', 'x', 'y', 'z']])
     new_df = pd.concat(new_df)
     new_df['file_name'] = new_df['file_name'].apply(lambda p: p.replace('.nd2', ''))
-    # new_df = new_df.pivot_table(columns='file_name', 
-    #                             index=['folder', 'track_id'], 
-    #                             values=['volume', 'integrated_density'], 
-    #                             aggfunc='max').reset_index(drop=False)
+
     new_df = (
         new_df.pivot_table(
             columns='file_name',
@@ -545,6 +526,14 @@ def make_3d_segmentation(
     density_cols = sorted(
         [c for c in new_df.columns if c.endswith('_integrated_density')]
     )
+    # filter channels with intensity
+    filtered_names = []
+    for ch_in in channels_for_intens:
+        filtered_names.append(channels_names[ch_in])
+    density_cols = [col for col in density_cols 
+                    if col.split('_integrated_density')[0].split('_')[1] 
+                    in filtered_names]
+
     new_df = new_df[
         base_cols + volume_cols + density_cols
     ]
@@ -573,8 +562,7 @@ def nd2_to_tiff(entire_file_name):
     # Convert image to tif
     img = AICSImage(entire_file_name)
     data = img.get_image_data("CZYX", T=0)
-    # tiff.imwrite(os.path.join('Nuclear_volume_with_tracking', folder, file_name.replace('.nd2', '.tif')), data[0])
-    return data[0]
+    return data
 
 def remove_outliers(labels, min_size=1000, max_size=None):
     '''

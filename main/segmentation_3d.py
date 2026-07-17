@@ -5,6 +5,7 @@ Code for 3D cell segmentation and tracking
 import os
 import glob
 import argparse
+import ast
 from cellpose import models, io
 import tifffile as tiff
 import pandas as pd
@@ -71,6 +72,15 @@ def main():
     parser.add_argument(
         "--cellprob_threshold", type=float, default=0.0, help="Lower = more sensitive"
     )
+    parser.add_argument(
+        "--channels_for_volume", type=str, default=[0], help="Choose channels to compute volume"
+    )
+    parser.add_argument(
+        "--channels_for_intens", type=str, default=[0], help="Choose channels to compute intensity"
+    )
+    parser.add_argument(
+        "--channels_names", type=str, default=['ch1'], help="Choose channels names"
+    )
 
     args = parser.parse_args()
 
@@ -104,6 +114,15 @@ def main():
     flow_threshold = float(args.flow_threshold)
     cellprob_threshold = float(args.cellprob_threshold)
 
+    channels_for_volume = str(args.channels_for_volume)
+    channels_for_volume = channels_for_volume[1:-1].split(',')
+    channels_for_volume = [int(x) for x in channels_for_volume]
+    channels_for_intens = str(args.channels_for_intens)
+    channels_for_intens = channels_for_intens[1:-1].split(',')
+    channels_for_intens = [int(x) for x in channels_for_intens]
+    channels_names = str(args.channels_names)
+    channels_names = channels_names[1:-1].split(',')
+
     params_dict = {
         'dx':dx,
         'dy':dy,
@@ -118,6 +137,9 @@ def main():
         'anisotropy':anisotropy,
         'flow_threshold':flow_threshold,
         'cellprob_threshold':cellprob_threshold,
+        'channels_for_volume':channels_for_volume,
+        'channels_for_intens':channels_for_intens,
+        'channels_names':channels_names
     }
 
 
