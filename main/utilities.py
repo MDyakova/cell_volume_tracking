@@ -17,9 +17,8 @@ from scipy import stats
 from aicsimageio import AICSImage
 from skimage.transform import resize
 from skimage.registration import phase_cross_correlation
-from scipy.ndimage import shift as ndi_shift
-from skimage.measure import block_reduce
-
+from scipy.ndimage import shift as ndi_shift, find_objects
+from skimage.measure import block_reduce, marching_cubes, mesh_surface_area
 
 # Function to join mask pairs
 def join_pairs(pairs):
@@ -343,6 +342,9 @@ def make_segmentation(
 
     return results
 
+def get_sample_id(col):
+    return int(re.search(r'_(\d+)_', col).group(1))
+
 def make_3d_segmentation(
                 image_directory,
                 output_directory,
@@ -461,16 +463,6 @@ def make_3d_segmentation(
         all_df.append(df)
         # all_images.append(image)
 
-    # # 3D tracking
-    # assignments, records = track_masks_3d_projection(
-    #     all_labels,
-    #     score_thr=score_thr,
-    #     memory=memory,
-    #     max_xy_dist=max_xy_dist,
-    #     w_xy=w_xy,
-    #     w_3d=w_3d,
-    #     w_size=w_size,
-    # )
     # 3D tracking
     aligned_labels_2d, shifts = align_all_labels_2d(all_labels_2d, reference_idx=0)
     all_labels_2d = np.stack(aligned_labels_2d, axis=0)
@@ -508,18 +500,23 @@ def make_3d_segmentation(
                 label_i = record['label']
                 track_id_i = record['track_id']
                 df.loc[df['label'] == label_i, 'track_id'] = track_id_i
-        new_df.append(df[['folder', 'file_name', 'track_id', 'size', 'volume', 'integrated_density', 'x', 'y', 'z']])
+        new_df.append(df[['folder', 
+                        'file_name', 
+                        'track_id', 
+                        'size', 
+                        'volume', 
+                        'integrated_density', 
+                        'sphericity', 
+                        'x', 
+                        'y', 
+                        'z']])
     new_df = pd.concat(new_df)
     new_df['file_name'] = new_df['file_name'].apply(lambda p: p.replace('.nd2', ''))
-    # new_df = new_df.pivot_table(columns='file_name', 
-    #                             index=['folder', 'track_id'], 
-    #                             values=['volume', 'integrated_density'], 
-    #                             aggfunc='max').reset_index(drop=False)
     new_df = (
         new_df.pivot_table(
             columns='file_name',
             index=['folder', 'track_id'],
-            values=['volume', 'integrated_density'],
+            values=['volume', 'integrated_density', 'sphericity'],
             aggfunc='max'
         )
         .reset_index()
@@ -539,14 +536,23 @@ def make_3d_segmentation(
     new_df = new_df[~new_df[all_cols].isna().any(axis=1)]
 
     base_cols = ['folder', 'track_id']
+
     volume_cols = sorted(
-        [c for c in new_df.columns if c.endswith('_volume')]
+        [c for c in new_df.columns if c.endswith('_volume')],
+        key=get_sample_id
     )
+
     density_cols = sorted(
-        [c for c in new_df.columns if c.endswith('_integrated_density')]
+        [c for c in new_df.columns if c.endswith('_integrated_density')],
+        key=get_sample_id
+    )
+
+    sphericity_cols = sorted(
+        [c for c in new_df.columns if c.endswith('_sphericity')],
+        key=get_sample_id
     )
     new_df = new_df[
-        base_cols + volume_cols + density_cols
+        base_cols + volume_cols + density_cols + sphericity_cols
     ]
 
     new_df.to_csv(os.path.join(output_folder, f'results_{folder}.csv'), index=None)
@@ -596,6 +602,78 @@ def remove_outliers(labels, min_size=1000, max_size=None):
     labels[mask_found]=0
     return labels
 
+def get_cell_surface_areas(
+    label_image,
+    voxel_size=(1.0, 1.0, 1.0)
+):
+    """
+    Calculate surface area for every cell in a 3D label image.
+
+    Parameters
+    ----------
+    label_image : np.ndarray
+        Integer array with shape (Z, Y, X).
+        0 = background; each cell has a unique positive label_id.
+
+    voxel_size : tuple
+        Physical voxel size as (dz, dy, dx).
+        For example, (1.5, 0.32, 0.32) in micrometers.
+
+    Returns
+    -------
+    pandas.DataFrame
+        label_id, surface_area, volume, voxel_count.
+    """
+    label_image = np.asarray(label_image)
+
+    if label_image.ndim != 3:
+        raise ValueError(
+            f"Expected a 3D array, got shape {label_image.shape}"
+        )
+
+    voxel_size = tuple(float(v) for v in voxel_size)
+    voxel_volume = np.prod(voxel_size)
+
+    results = []
+
+    # # The position in this list corresponds to label_id - 1
+    # bounding_boxes = find_objects(label_image)
+
+    for label_id in pd.unique(label_image.reshape(-1)):
+        if label_id==0:
+            continue
+
+        # Extract only the local region containing this cell
+        cell_mask = label_image == label_id
+        voxel_count = int(cell_mask.sum())
+
+        if voxel_count == 0:
+            continue
+
+        # Padding closes the surface for cells touching the crop boundary
+        cell_mask = np.pad(
+            cell_mask,
+            pad_width=1,
+            mode="constant",
+            constant_values=False
+        )
+
+        vertices, faces, _, _ = marching_cubes(
+            cell_mask.astype(np.uint8),
+            level=0.5,
+            spacing=voxel_size
+        )
+
+        surface_area = mesh_surface_area(vertices, faces)
+        volume = voxel_count * voxel_volume
+
+        results.append({
+            "label": label_id,
+            "surface_area": surface_area
+        })
+
+    return pd.DataFrame(results)
+
 def compute_sizes(image, labels, dx, dy, dz, resize_factor):
     '''
     Clean very small and big labels
@@ -616,7 +694,17 @@ def compute_sizes(image, labels, dx, dy, dz, resize_factor):
     df['volume']=df['size']*dx*dy*dz
     # Compute integrated density
     df['integrated_density']=df['values']*(resize_factor**2)
-    
+
+    # Compute surface areas
+    df_s = get_cell_surface_areas(labels,
+                                    voxel_size=(dz, dy, dx))
+    df = pd.merge(df, df_s, on=['label'])
+    df["sphericity"] = (
+        np.pi ** (1 / 3)
+        * (6 * df["volume"]) ** (2 / 3)
+        / df["surface_area"]
+    )
+        
     return df
 
 import numpy as np
