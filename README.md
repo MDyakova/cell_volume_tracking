@@ -13,19 +13,19 @@ Segment, track, and quantify cell volume over time. The toolkit provides:
 Download existing image (recommended):
 
 ```bash
-docker pull mdyakova/cell_tracking:v2.1
+docker pull mdyakova/cell_tracking:v5
 ```
 
 or build the image (pre-caches Cellpose CPSAM weights during build for faster first run):
 
 ```bash
-docker build -t cell_tracking:v2.1 .
+docker build -t cell_tracking:v5 .
 ```
 
 Run segmentation + tracking (with GPU and a bind mount; adjust paths as needed):
 
 ```bash
-docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v2.1 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
+docker run --rm --gpus all -v "C:\work_dir\cell_tracking_files:/cell_tracking_files" mdyakova/cell_tracking:v5 python segmentation.py --image_directory "/cell_tracking_files/data" --output_directory "/cell_tracking_files/tracking_results" --name_filter Xenopus --cell_diameter_min 30 --cell_diameter_max 100 --tile_size 400
 ```
 
 ```bash
